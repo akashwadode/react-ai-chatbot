@@ -27,7 +27,7 @@ Rules:
     })
 
     payload = {
-        "model": "biomistral",
+        "model": "mistral:7b-instruct-v0.2-q2_K",
         "messages": messages,
         "stream": False
     }

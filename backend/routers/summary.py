@@ -10,9 +10,6 @@ def get_summary(context=Depends(validate_signed_request)):
 
     pid = context["pid"]
     print("HASH PID FROM TOKEN:", pid)
-
-
-
     try:
         conn = get_connection()
         cursor = conn.cursor()
