@@ -1,6 +1,6 @@
-from backend.services.db_service import get_connection
+from backend.core.database import get_connection
 from backend.modules.ai.llm import generate_response
-from backend.services.patient_context_loader import load_patient_context
+from backend.modules.report.service import load_patient_context
 from backend.shared.cache import (
     load_parameters_once,
     get_cached_context,
@@ -29,25 +29,37 @@ REPORT_INSIGHT_BUTTONS = [
     "Download Report",
 ]
 
+# --- NEW: Buttons for direct parameter value answer ---
+PARAMETER_VALUE_BUTTONS = [
+    "Is {param} normal?",
+    "What can improve {param}?",
+    "Show important parameters",
+    "Download Report",
+]
 
 def build_dynamic_buttons(intent: str, matched_param: str | None = None) -> list[str]:
     if intent == "greeting":
         return PROFILE_BUTTONS
-
     if intent == "profile":
         return ["How many tests", "How many parameters", "Hemoglobin", "Download Report"]
-
     if intent == "lab_parameter" and matched_param:
+        # For AI‑explained parameter
         return [
             f"Is {matched_param} normal?",
             f"What can improve {matched_param}?",
             "Show important parameters",
             "Download Report",
         ]
-
+    if intent == "lab_parameter_value" and matched_param:
+        # For direct value answer – same buttons, different intent
+        return [
+            f"Is {matched_param} normal?",
+            f"What can improve {matched_param}?",
+            "Show important parameters",
+            "Download Report",
+        ]
     if intent == "general":
         return REPORT_INSIGHT_BUTTONS
-
     return DEFAULT_BUTTONS
 
 
@@ -73,7 +85,6 @@ def handle_chat(pid_hash: str, question_raw: str):
         if question in GREETING_WORDS:
             conn = get_connection()
             cursor = conn.cursor()
-
             cursor.execute(
                 """
                 SELECT Name
@@ -82,18 +93,15 @@ def handle_chat(pid_hash: str, question_raw: str):
                 """,
                 (pid_hash,),
             )
-
             patient = cursor.fetchone()
             cursor.close()
             conn.close()
-
             if patient:
                 return {
                     "answer": f"Hi {patient[0]}! How can I help you with your report today?",
                     "buttons": build_dynamic_buttons("greeting"),
                     "intent": "greeting",
                 }
-
             return {
                 "answer": "Hello! How can I help you today?",
                 "buttons": build_dynamic_buttons("greeting"),
@@ -105,7 +113,6 @@ def handle_chat(pid_hash: str, question_raw: str):
             if key in question:
                 conn = get_connection()
                 cursor = conn.cursor()
-
                 cursor.execute(
                     f"""
                     SELECT {column}
@@ -114,11 +121,9 @@ def handle_chat(pid_hash: str, question_raw: str):
                     """,
                     (pid_hash,),
                 )
-
                 result = cursor.fetchone()
                 cursor.close()
                 conn.close()
-
                 if result:
                     return {
                         "answer": f"Your {column.lower()} is {result[0]}.",
@@ -126,13 +131,9 @@ def handle_chat(pid_hash: str, question_raw: str):
                         "intent": "profile",
                     }
 
-        # ---------------- PARAMETER MATCH ----------------
-        parameters = load_parameters_once()
-        matched_param = next((p for p in parameters if p in question), None)
-
+        # ---------------- GET PATIENT ID ----------------
         conn = get_connection()
         cursor = conn.cursor()
-
         cursor.execute(
             """
             SELECT PatientID
@@ -141,9 +142,7 @@ def handle_chat(pid_hash: str, question_raw: str):
             """,
             (pid_hash,),
         )
-
         patient = cursor.fetchone()
-
         if not patient:
             cursor.close()
             conn.close()
@@ -152,103 +151,60 @@ def handle_chat(pid_hash: str, question_raw: str):
                 "buttons": DEFAULT_BUTTONS,
                 "intent": "error",
             }
-
         patient_id = patient[0]
-        chat_memory = get_memory(patient_id)
-
-        # ---------------- GENERAL QUESTION ----------------
-        if not matched_param:
-            cursor.close()
-            conn.close()
-
-            context_data = get_cached_context(patient_id)
-
-            if not context_data:
-                context_data = load_patient_context(patient_id)
-                set_cached_context(patient_id, context_data)
-
-            final_prompt = f"""
-Answer the following question based on the patient report.
-
-Question: {question_raw}
-
-Patient Report:
-{context_data}
-"""
-
-            ai_reply = generate_response(final_prompt, chat_memory)
-
-            return {
-                "answer": ai_reply,
-                "buttons": build_dynamic_buttons("general"),
-                "intent": "general",
-            }
-
-        # ---------------- LAB PARAMETER ----------------
-        cursor.execute(
-            """
-            SELECT tp.TestParameterId, tp.ParameterName
-            FROM TestParameter tp
-            JOIN TestResult tr
-            ON tp.TestParameterId = tr.TestParameterId
-            WHERE tr.PatientID = %s
-            AND LOWER(tp.ParameterName) = LOWER(%s)
-            LIMIT 1
-            """,
-            (patient_id, matched_param),
-        )
-
-        param = cursor.fetchone()
-
-        if not param:
-            cursor.close()
-            conn.close()
-            return {
-                "answer": f"{matched_param} not found in your report",
-                "buttons": build_dynamic_buttons("general"),
-                "intent": "general",
-            }
-
-        param_id = param[0]
-        parameter_name = param[1]
-
-        cursor.execute(
-            """
-            SELECT ResultValue
-            FROM TestResult
-            WHERE PatientID = %s
-            AND TestParameterId = %s
-            """,
-            (patient_id, param_id),
-        )
-
-        result = cursor.fetchone()
         cursor.close()
         conn.close()
 
-        if not result or result[0] is None:
-            return {
-                "answer": f"{parameter_name} test is available but no result value is recorded in your report.",
-                "buttons": build_dynamic_buttons("lab_parameter", parameter_name),
-                "intent": "lab_parameter",
-            }
+        # --- NEW: Load (or create) patient context ONCE ---
+        context = get_cached_context(patient_id)
+        if not context:
+            raw_context = load_patient_context(patient_id)
+            set_cached_context(patient_id, raw_context)
+            context = get_cached_context(patient_id)   # now includes 'text' and 'params'
 
-        lab_value = result[0]
+        chat_memory = get_memory(patient_id)
 
-        prompt = f"""
-Patient's {parameter_name} test result is {lab_value}.
+        # ---------------- PARAMETER MATCH ----------------
+        parameters = load_parameters_once()
+        matched_param = next((p for p in parameters if p in question), None)
 
-Explain in 2-3 short simple lines:
-- Is this normal or abnormal?
-- What does it mean for health?
-"""
+        # ---------------- LAB PARAMETER (NEW CACHED VERSION) ----------------
+        if matched_param:
+            # Try to get value from cached params dictionary
+            value = context["params"].get(matched_param)
 
-        ai_explanation = generate_response(prompt, chat_memory)
+            if value is not None:
+                # Direct answer from cache – no DB, no LLM
+                return {
+                    "answer": f"Your {matched_param} is {value}.",
+                    "buttons": build_dynamic_buttons("lab_parameter_value", matched_param),
+                    "intent": "lab_parameter_value"
+                }
+            else:
+                # Parameter not found in patient's report
+                return {
+                    "answer": f"{matched_param} not found in your report.",
+                    "buttons": build_dynamic_buttons("general"),
+                    "intent": "general",
+                }
+
+        # ---------------- GENERAL QUESTION ----------------
+        # (No matched parameter)
+        final_prompt = f"""
+            Answer the following question based on the patient report.
+
+            Question: {question_raw}
+
+            Patient Report:
+            {context['text']}
+            """
+
+        ai_reply = generate_response(final_prompt, chat_memory)
 
         return {
-            "answer": ai_explanation,
-            "buttons": build_dynamic_buttons("lab_parameter", parameter_name),
-            "intent": "lab_parameter",
+            "answer": ai_reply,
+            "buttons": build_dynamic_buttons("general"),
+            "intent": "general",
         }
 
     except Exception as e:

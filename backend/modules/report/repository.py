@@ -1,4 +1,4 @@
-from backend.services.db_service import get_connection
+from backend.core.database import get_connection
 
 
 def get_patient_by_hash(pid_hash: str):

@@ -56,24 +56,29 @@ def load_parameters_once():
 # 📄 Patient Report Context Cache
 # -------------------------------
 
-_PATIENT_CONTEXT_CACHE = {}
+# In shared/cache.py
 
+_PATIENT_CONTEXT_CACHE = {}   # now will hold dicts with keys 'text' and 'params'
 
 def get_cached_context(patient_id):
-    """
-    Returns cached report context for a patient (if exists).
-    """
+    """Returns cached context dict for a patient (or None)."""
     return _PATIENT_CONTEXT_CACHE.get(patient_id)
 
-
-def set_cached_context(patient_id, context):
+def set_cached_context(patient_id, context_text):
     """
-    Stores generated report context in memory.
-    Prevents reloading from DB repeatedly.
+    Stores report context and also parses it into a parameter dict.
+    context_text is a multiline string like "hemoglobin: 13.2\nglucose: 95"
     """
-    _PATIENT_CONTEXT_CACHE[patient_id] = context
+    params_dict = {}
+    for line in context_text.strip().split("\n"):
+        if ":" in line:
+            key, val = line.split(":", 1)
+            params_dict[key.strip().lower()] = val.strip()
 
-
+    _PATIENT_CONTEXT_CACHE[patient_id] = {
+        "text": context_text,
+        "params": params_dict
+    }
 # -------------------------------
 # 🧠 Chat Memory Cache
 # -------------------------------
