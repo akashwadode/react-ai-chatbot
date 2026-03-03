@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+﻿from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from backend.middleware.token_validator import validate_signed_request
 from backend.services.db_service import get_connection
@@ -10,24 +10,65 @@ from backend.services.memory_cache import get_memory
 
 router = APIRouter()
 
+DEFAULT_BUTTONS = [
+    "Hemoglobin",
+    "How many parameters",
+    "How many tests",
+    "Download Report",
+]
+
+PROFILE_BUTTONS = [
+    "What is my name",
+    "What is my age",
+    "What is my gender",
+    "How many tests",
+]
+
+REPORT_INSIGHT_BUTTONS = [
+    "Explain abnormal values",
+    "Show important parameters",
+    "How many parameters",
+    "Download Report",
+]
+
+
+def build_dynamic_buttons(intent: str, matched_param: str | None = None) -> list[str]:
+    if intent == "greeting":
+        return PROFILE_BUTTONS
+
+    if intent == "profile":
+        return ["How many tests", "How many parameters", "Hemoglobin", "Download Report"]
+
+    if intent == "lab_parameter" and matched_param:
+        return [
+            f"Is {matched_param} normal?",
+            f"What can improve {matched_param}?",
+            "Show important parameters",
+            "Download Report",
+        ]
+
+    if intent == "general":
+        return REPORT_INSIGHT_BUTTONS
+
+    return DEFAULT_BUTTONS
+
+
 class ChatRequest(BaseModel):
     question: str
+
 
 @router.post("/chat")
 def chat_ai(body: ChatRequest, context=Depends(validate_signed_request)):
 
-    print("🔥 CHAT API HIT")
+    print("CHAT API HIT")
 
     pid_hash = context["pid"]
-    question = body.question.lower()
+    question_raw = body.question.strip()
+    question = question_raw.lower()
 
     print("Question:", question)
 
     try:
-
-        # ======================================================
-        # ⚡ PREDEFINED FACTUAL QUESTIONS (NO LLM NEEDED)
-        # ======================================================
 
         GREETING_WORDS = ["hi", "hello", "hey"]
 
@@ -38,22 +79,23 @@ def chat_ai(body: ChatRequest, context=Depends(validate_signed_request)):
             "what is my age": "Age",
             "my age": "Age",
             "what is my gender": "Gender",
-            "my gender": "Gender"
+            "my gender": "Gender",
         }
 
-        # 👋 Greeting detected → Fetch Name only
-        if question.strip() in GREETING_WORDS:
-
-            print("👋 GREETING → DIRECT DB RESPONSE")
+        if question in GREETING_WORDS:
+            print("GREETING -> DIRECT DB RESPONSE")
 
             conn = get_connection()
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT Name
                 FROM Patient
                 WHERE encode(digest(PatientID::text, 'sha256'), 'hex') = %s
-            """, (pid_hash,))
+            """,
+                (pid_hash,),
+            )
 
             patient = cursor.fetchone()
 
@@ -61,24 +103,33 @@ def chat_ai(body: ChatRequest, context=Depends(validate_signed_request)):
             conn.close()
 
             if patient:
-                return {"answer": f"Hi {patient[0]} 👋 How can I help you with your report today?"}
-            else:
-                return {"answer": "Hello 👋 How can I help you today?"}
+                return {
+                    "answer": f"Hi {patient[0]}! How can I help you with your report today?",
+                    "buttons": build_dynamic_buttons("greeting"),
+                    "intent": "greeting",
+                }
 
-        # 📌 Other factual queries
+            return {
+                "answer": "Hello! How can I help you today?",
+                "buttons": build_dynamic_buttons("greeting"),
+                "intent": "greeting",
+            }
+
         for key, column in PREDEFINED_QUERIES.items():
             if key in question:
-
-                print(f"⚡ FACTUAL QUERY → FETCH {column}")
+                print(f"FACTUAL QUERY -> FETCH {column}")
 
                 conn = get_connection()
                 cursor = conn.cursor()
 
-                cursor.execute(f"""
+                cursor.execute(
+                    f"""
                     SELECT {column}
                     FROM Patient
                     WHERE encode(digest(PatientID::text, 'sha256'), 'hex') = %s
-                """, (pid_hash,))
+                """,
+                    (pid_hash,),
+                )
 
                 result = cursor.fetchone()
 
@@ -86,11 +137,11 @@ def chat_ai(body: ChatRequest, context=Depends(validate_signed_request)):
                 conn.close()
 
                 if result:
-                    return {"answer": f"Your {column.lower()} is {result[0]}."}
-
-        # ======================================================
-        # 🧠 PARAMETER MATCHING
-        # ======================================================
+                    return {
+                        "answer": f"Your {column.lower()} is {result[0]}.",
+                        "buttons": build_dynamic_buttons("profile"),
+                        "intent": "profile",
+                    }
 
         parameters = load_parameters_once()
 
@@ -103,28 +154,31 @@ def chat_ai(body: ChatRequest, context=Depends(validate_signed_request)):
         conn = get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT PatientID
             FROM Patient
             WHERE encode(digest(PatientID::text, 'sha256'), 'hex') = %s
-        """, (pid_hash,))
+        """,
+            (pid_hash,),
+        )
 
         patient = cursor.fetchone()
 
         if not patient:
             cursor.close()
             conn.close()
-            return {"answer": "Patient not found"}
+            return {
+                "answer": "Patient not found",
+                "buttons": DEFAULT_BUTTONS,
+                "intent": "error",
+            }
 
         patient_id = patient[0]
         chat_memory = get_memory(patient_id)
 
-        # ======================================================
-        # ❗ GENERAL QUESTION → LOAD CONTEXT + LLM
-        # ======================================================
         if not matched_param:
-
-            print("🧠 GENERAL QUESTION")
+            print("GENERAL QUESTION")
 
             cursor.close()
             conn.close()
@@ -132,31 +186,32 @@ def chat_ai(body: ChatRequest, context=Depends(validate_signed_request)):
             context_data = get_cached_context(patient_id)
 
             if not context_data:
-                print("📥 LOADING CONTEXT FROM DB")
+                print("LOADING CONTEXT FROM DB")
                 context_data = load_patient_context(patient_id)
                 set_cached_context(patient_id, context_data)
             else:
-                print("⚡ USING CACHED CONTEXT")
+                print("USING CACHED CONTEXT")
 
             final_prompt = f"""
 Answer the following question based on the patient report.
 
-Question: {question}
+Question: {question_raw}
 
 Patient Report:
 {context_data}
 """
 
             ai_reply = generate_response(final_prompt, chat_memory)
-            return {"answer": ai_reply}
+            return {
+                "answer": ai_reply,
+                "buttons": build_dynamic_buttons("general"),
+                "intent": "general",
+            }
 
-        # ======================================================
-        # ❗ LAB PARAMETER QUESTION
-        # ======================================================
+        print("LAB PARAMETER DETECTED -> FETCH VALUE")
 
-        print("🧾 LAB PARAMETER DETECTED → FETCH VALUE")
-
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT tp.TestParameterId, tp.ParameterName
             FROM TestParameter tp
             JOIN TestResult tr
@@ -164,24 +219,33 @@ Patient Report:
             WHERE tr.PatientID = %s
             AND LOWER(tp.ParameterName) = LOWER(%s)
             LIMIT 1
-        """, (patient_id, matched_param))
+        """,
+            (patient_id, matched_param),
+        )
 
         param = cursor.fetchone()
 
         if not param:
             cursor.close()
             conn.close()
-            return {"answer": f"{matched_param} not found in your report"}
+            return {
+                "answer": f"{matched_param} not found in your report",
+                "buttons": build_dynamic_buttons("general"),
+                "intent": "general",
+            }
 
         param_id = param[0]
         parameter_name = param[1]
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT ResultValue
             FROM TestResult
             WHERE PatientID = %s
             AND TestParameterId = %s
-        """, (patient_id, param_id))
+        """,
+            (patient_id, param_id),
+        )
 
         result = cursor.fetchone()
 
@@ -190,7 +254,9 @@ Patient Report:
 
         if not result or result[0] is None:
             return {
-                "answer": f"{parameter_name} test is available but no result value is recorded in your report."
+                "answer": f"{parameter_name} test is available but no result value is recorded in your report.",
+                "buttons": build_dynamic_buttons("lab_parameter", parameter_name),
+                "intent": "lab_parameter",
             }
 
         lab_value = result[0]
@@ -204,8 +270,16 @@ Explain in 2-3 short simple lines:
 """
 
         ai_explanation = generate_response(prompt, chat_memory)
-        return {"answer": ai_explanation}
+        return {
+            "answer": ai_explanation,
+            "buttons": build_dynamic_buttons("lab_parameter", parameter_name),
+            "intent": "lab_parameter",
+        }
 
     except Exception as e:
-        print("❌ ERROR:", e)
-        return {"answer": str(e)}
+        print("ERROR:", e)
+        return {
+            "answer": "Something went wrong while processing your request.",
+            "buttons": DEFAULT_BUTTONS,
+            "intent": "error",
+        }

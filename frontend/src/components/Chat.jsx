@@ -1,24 +1,30 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
+
+const DEFAULT_BUTTONS = [
+  "Hemoglobin",
+  "How many parameters",
+  "How many tests",
+  "Download Report",
+];
 
 function Chat({ messages, setMessages }) {
   const [text, setText] = useState("");
+  const [actionButtons, setActionButtons] = useState(DEFAULT_BUTTONS);
   const bottomRef = useRef(null);
-  const [showActions, setShowActions] = useState(true);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const addMsg = (type, text) => {
-    setMessages((prev) => [...prev, { type, text }]);
+  const addMsg = (type, messageText) => {
+    setMessages((prev) => [...prev, { type, text: messageText }]);
   };
 
-  const sendChat = async () => {
-    if (!text.trim()) return;
+  const sendChat = async (questionOverride) => {
+    const questionText = (questionOverride ?? text).trim();
+    if (!questionText) return;
 
-    addMsg("user", text);
-    setShowActions(false);
-
-    const q = text;
+    addMsg("user", questionText);
     setText("");
 
     try {
@@ -28,26 +34,32 @@ function Chat({ messages, setMessages }) {
       const exp = params.get("exp");
       const sig = params.get("sig");
 
-      const response = await fetch(
-        `/chat?pid=${pid}&rid=${rid}&exp=${exp}&sig=${sig}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: q }),
-        },
-      );
+      const response = await fetch(`/chat?pid=${pid}&rid=${rid}&exp=${exp}&sig=${sig}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: questionText }),
+      });
 
       const data = await response.json();
-
       addMsg("bot", data.answer || "No response.");
+
+      if (Array.isArray(data.buttons) && data.buttons.length) {
+        setActionButtons(data.buttons);
+      } else {
+        setActionButtons(DEFAULT_BUTTONS);
+      }
     } catch (err) {
       addMsg("bot", "Server connection error.");
+      setActionButtons(DEFAULT_BUTTONS);
     }
   };
 
-  const quickAsk = (t) => {
-    setText(t);
-    sendChat();
+  const quickAsk = (buttonLabel) => {
+    if (buttonLabel.toLowerCase().includes("download report")) {
+      downloadReport();
+      return;
+    }
+    sendChat(buttonLabel);
   };
 
   const downloadReport = () => {
@@ -70,30 +82,30 @@ function Chat({ messages, setMessages }) {
             {m.text}
           </div>
         ))}
-        
-  <div ref={bottomRef}></div>
+
+        <div ref={bottomRef}></div>
       </div>
 
-      {showActions && (
-        <div className="actions">
-          <button onClick={() => quickAsk("Hemoglobin")}>🩸 Hemoglobin</button>
-          <button onClick={() => quickAsk("How many parameters")}>
-            📊 Total Parameters
+      <div className="actions">
+        {actionButtons.map((label) => (
+          <button key={label} onClick={() => quickAsk(label)}>
+            {label}
           </button>
-          <button onClick={() => quickAsk("How many tests")}>
-            🧪 Total Tests
-          </button>
-          <button onClick={downloadReport}>📥 Download Report</button>
-        </div>
-      )}
+        ))}
+      </div>
 
       <div className="chat-input">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Type your question..."
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              sendChat();
+            }
+          }}
         />
-        <button onClick={sendChat}>Send</button>
+        <button onClick={() => sendChat()}>Send</button>
       </div>
     </div>
   );
