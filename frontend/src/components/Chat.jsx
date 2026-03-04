@@ -10,11 +10,13 @@ const DEFAULT_BUTTONS = [
 function Chat({ messages, setMessages }) {
   const [text, setText] = useState("");
   const [actionButtons, setActionButtons] = useState(DEFAULT_BUTTONS);
+  const [isBotTyping, setIsBotTyping] = useState(false); // new state
   const bottomRef = useRef(null);
 
+  // Scroll to bottom whenever messages change OR typing starts
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isBotTyping]);
 
   const addMsg = (type, messageText) => {
     setMessages((prev) => [...prev, { type, text: messageText }]);
@@ -24,8 +26,12 @@ function Chat({ messages, setMessages }) {
     const questionText = (questionOverride ?? text).trim();
     if (!questionText) return;
 
+    // Prevent sending another request while bot is already typing
+    if (isBotTyping) return;
+
     addMsg("user", questionText);
     setText("");
+    setIsBotTyping(true); // show typing indicator
 
     try {
       const params = new URLSearchParams(window.location.search);
@@ -34,13 +40,17 @@ function Chat({ messages, setMessages }) {
       const exp = params.get("exp");
       const sig = params.get("sig");
 
-      const response = await fetch(`/chat?pid=${pid}&rid=${rid}&exp=${exp}&sig=${sig}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: questionText }),
-      });
+      const response = await fetch(
+        `/chat?pid=${pid}&rid=${rid}&exp=${exp}&sig=${sig}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: questionText }),
+        },
+      );
 
       const data = await response.json();
+      setIsBotTyping(false); // hide indicator before adding bot message
       addMsg("bot", data.answer || "No response.");
 
       if (Array.isArray(data.buttons) && data.buttons.length) {
@@ -49,6 +59,7 @@ function Chat({ messages, setMessages }) {
         setActionButtons(DEFAULT_BUTTONS);
       }
     } catch (err) {
+      setIsBotTyping(false);
       addMsg("bot", "Server connection error.");
       setActionButtons(DEFAULT_BUTTONS);
     }
@@ -83,6 +94,17 @@ function Chat({ messages, setMessages }) {
           </div>
         ))}
 
+        {/* Typing indicator shown while waiting for bot response */}
+        {isBotTyping && (
+          <div className="msg bot typing">
+            <div className="typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        )}
+
         <div ref={bottomRef}></div>
       </div>
 
@@ -104,8 +126,11 @@ function Chat({ messages, setMessages }) {
               sendChat();
             }
           }}
+          disabled={isBotTyping} // disable while bot is typing
         />
-        <button onClick={() => sendChat()}>Send</button>
+        <button onClick={() => sendChat()} disabled={isBotTyping}>
+          Send
+        </button>
       </div>
     </div>
   );

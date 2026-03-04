@@ -196,3 +196,55 @@ body {
   color: white;
   font-weight: 600;
 }
+
+/* Typing indicator dots */
+.msg.bot.typing {
+  background-color: #e5e5ea;
+  color: #000;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 18px;
+  border-bottom-left-radius: 4px;
+  max-width: 60px;
+}
+
+/* Typing indicator container – matches your bot message bubble */
+.msg.bot.typing {
+  background-color: #e5e5ea;   /* typical WhatsApp grey */
+  color: #000;
+  padding: 8px 12px;
+  border-radius: 18px;
+  border-bottom-left-radius: 4px;
+  display: inline-flex;        /* shrink to fit dots */
+  align-items: center;
+  max-width: 70px;             /* optional, prevents too wide bubble */
+}
+
+
+/* The three dots container */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Each dot */
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  background-color: #333;      /* dark grey dots */
+  border-radius: 50%;
+  display: inline-block;
+  animation: typingBounce 1.4s infinite ease-in-out both;
+}
+
+/* Stagger the animations */
+.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+/* Bounce / scale animation */
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.6; }
+  40% { transform: scale(1); opacity: 1; }
+}
