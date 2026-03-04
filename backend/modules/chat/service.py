@@ -1,6 +1,7 @@
 from core.database import get_connection
 from modules.ai.llm import generate_response
 from modules.report.service import load_patient_context
+from modules.ai.prompts import build_user_prompt
 from shared.cache import (
     load_parameters_once,
     get_cached_context,
@@ -29,7 +30,7 @@ REPORT_INSIGHT_BUTTONS = [
     "Download Report",
 ]
 
-# --- NEW: Buttons for direct parameter value answer ---
+# Buttons for direct parameter value answer
 PARAMETER_VALUE_BUTTONS = [
     "Is {param} normal?",
     "What can improve {param}?",
@@ -43,7 +44,6 @@ def build_dynamic_buttons(intent: str, matched_param: str | None = None) -> list
     if intent == "profile":
         return ["How many tests", "How many parameters", "Hemoglobin", "Download Report"]
     if intent == "lab_parameter" and matched_param:
-        # For AI‑explained parameter
         return [
             f"Is {matched_param} normal?",
             f"What can improve {matched_param}?",
@@ -51,7 +51,6 @@ def build_dynamic_buttons(intent: str, matched_param: str | None = None) -> list
             "Download Report",
         ]
     if intent == "lab_parameter_value" and matched_param:
-        # For direct value answer – same buttons, different intent
         return [
             f"Is {matched_param} normal?",
             f"What can improve {matched_param}?",
@@ -64,7 +63,6 @@ def build_dynamic_buttons(intent: str, matched_param: str | None = None) -> list
 
 
 def handle_chat(pid_hash: str, question_raw: str):
-
     question = question_raw.strip().lower()
 
     GREETING_WORDS = ["hi", "hello", "hey"]
@@ -80,7 +78,6 @@ def handle_chat(pid_hash: str, question_raw: str):
     }
 
     try:
-
         # ---------------- GREETING ----------------
         if question in GREETING_WORDS:
             conn = get_connection()
@@ -155,7 +152,7 @@ def handle_chat(pid_hash: str, question_raw: str):
         cursor.close()
         conn.close()
 
-        # --- NEW: Load (or create) patient context ONCE ---
+        # --- Load (or create) patient context ONCE ---
         context = get_cached_context(patient_id)
         if not context:
             raw_context = load_patient_context(patient_id)
@@ -168,37 +165,57 @@ def handle_chat(pid_hash: str, question_raw: str):
         parameters = load_parameters_once()
         matched_param = next((p for p in parameters if p in question), None)
 
-        # ---------------- LAB PARAMETER (NEW CACHED VERSION) ----------------
+        # ---------------- ENHANCED INTENT DETECTION ----------------
         if matched_param:
-            # Try to get value from cached params dictionary
-            value = context["params"].get(matched_param)
+            # Define keyword sets
+            meaning_keywords = ["explain", "define", "meaning", "tell me about"]
+            ambiguous_phrases = ["what is"]
 
-            if value is not None:
-                # Direct answer from cache – no DB, no LLM
-                return {
-                    "answer": f"Your {matched_param} is {value}.",
-                    "buttons": build_dynamic_buttons("lab_parameter_value", matched_param),
-                    "intent": "lab_parameter_value"
-                }
+            # Check for strong meaning indicators
+            if any(kw in question for kw in meaning_keywords):
+                # Definitely an explanatory question → send to LLM
+                pass  # fall through to general question handling
+
+            # Check ambiguous phrases like "what is"
+            elif any(ap in question for ap in ambiguous_phrases):
+                if "my" in question:
+                    # "what is my X" → value request
+                    value = context["params"].get(matched_param)
+                    if value is not None:
+                        return {
+                            "answer": f"Your {matched_param} is {value}.",
+                            "buttons": build_dynamic_buttons("lab_parameter_value", matched_param),
+                            "intent": "lab_parameter_value"
+                        }
+                    else:
+                        return {
+                            "answer": f"{matched_param} not found in your report.",
+                            "buttons": build_dynamic_buttons("general"),
+                            "intent": "general",
+                        }
+                else:
+                    # "what is X" without "my" → explanatory
+                    pass  # fall through to LLM
+
             else:
-                # Parameter not found in patient's report
-                return {
-                    "answer": f"{matched_param} not found in your report.",
-                    "buttons": build_dynamic_buttons("general"),
-                    "intent": "general",
-                }
+                # No meaning keywords → assume value request
+                value = context["params"].get(matched_param)
+                if value is not None:
+                    return {
+                        "answer": f"Your {matched_param} is {value}.",
+                        "buttons": build_dynamic_buttons("lab_parameter_value", matched_param),
+                        "intent": "lab_parameter_value"
+                    }
+                else:
+                    return {
+                        "answer": f"{matched_param} not found in your report.",
+                        "buttons": build_dynamic_buttons("general"),
+                        "intent": "general",
+                    }
 
         # ---------------- GENERAL QUESTION ----------------
-        # (No matched parameter)
-        final_prompt = f"""
-            Answer the following question based on the patient report.
-
-            Question: {question_raw}
-
-            Patient Report:
-            {context['text']}
-            """
-
+        # (No parameter matched, or matched but identified as explanatory)
+        final_prompt = build_user_prompt(question_raw, context['text'])
         ai_reply = generate_response(final_prompt, chat_memory)
 
         return {

@@ -6,24 +6,15 @@ Responsible only for sending prompt and returning AI response.
 """
 
 import requests
+from modules.ai.prompts import SYSTEM_PROMPT  # import the centralized prompt
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
 
-
 def generate_response(prompt: str, chat_history: list):
-
     messages = [
         {
             "role": "system",
-            "content": """
-You are a medical report assistant chatbot.
-
-Rules:
-- Answer in 2-3 short lines
-- Use simple patient-friendly language
-- Avoid complex medical terms
-- Be clear and concise
-"""
+            "content": SYSTEM_PROMPT   # use from prompts.py
         }
     ]
 
