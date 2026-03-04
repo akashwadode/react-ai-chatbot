@@ -6,6 +6,7 @@ from backend.modules.chat.router import router as chat_router
 from backend.modules.link.router import router as link_router
 from backend.core.database import get_connection
 
+
 print("🚀 FASTAPI MAIN.PY LOADED")
 
 app = FastAPI()
