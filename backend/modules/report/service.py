@@ -1,4 +1,4 @@
-from backend.modules.report.repository import (
+from modules.report.repository import (
     get_patient_by_hash,
     get_patient_tests
 )

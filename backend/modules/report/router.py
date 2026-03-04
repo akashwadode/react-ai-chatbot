@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
-from backend.modules.link.router import validate_signed_request
-from backend.modules.report.service import build_summary
+from modules.link.router import validate_signed_request
+from modules.report.service import build_summary
 
 router = APIRouter()
 

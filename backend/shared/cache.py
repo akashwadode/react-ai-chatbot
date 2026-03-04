@@ -14,7 +14,7 @@ Data will reset when server restarts.
 Suitable for small-scale / single-instance deployments.
 """
 
-from backend.core.database import get_connection
+from core.database import get_connection
 
 # -------------------------------
 # 🔬 Parameter Cache

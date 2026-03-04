@@ -1,7 +1,7 @@
-from backend.core.database import get_connection
-from backend.modules.ai.llm import generate_response
-from backend.modules.report.service import load_patient_context
-from backend.shared.cache import (
+from core.database import get_connection
+from modules.ai.llm import generate_response
+from modules.report.service import load_patient_context
+from shared.cache import (
     load_parameters_once,
     get_cached_context,
     set_cached_context,

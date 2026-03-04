@@ -5,7 +5,7 @@ import time
 from fastapi import HTTPException
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="backend/.env")
+load_dotenv(dotenv_path=".env")
 
 SECRET = os.getenv("SIGNED_URL_SECRET")
 BASE_URL = os.getenv("BASE_URL")

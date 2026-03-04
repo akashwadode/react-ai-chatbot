@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.modules.report.router import router as summary_router
-from backend.modules.chat.router import router as chat_router
-from backend.modules.link.router import router as link_router
-from backend.core.database import get_connection
+from modules.report.router import router as summary_router
+from modules.chat.router import router as chat_router
+from modules.link.router import router as link_router
+from core.database import get_connection
 
 
 print("🚀 FASTAPI MAIN.PY LOADED")
