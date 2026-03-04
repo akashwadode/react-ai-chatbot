@@ -1,54 +1,65 @@
 """
 modules/ai/llm.py
 
-Handles communication with local Ollama LLM.
-Responsible only for sending prompt and returning AI response.
+Handles communication with local Ollama LLM using the /api/chat endpoint.
+Uses the mistral:7b-instruct model which understands the messages format.
 """
 
 import requests
-from modules.ai.prompts import SYSTEM_PROMPT  # import the centralized prompt
+from modules.ai.prompts import SYSTEM_PROMPT
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
+MODEL_NAME = "mistral:7b-instruct-v0.2-q2_K"   # <-- changed here
 
-def generate_response(prompt: str, chat_history: list):
+def generate_response(user_prompt: str, chat_history: list) -> str:
+    """
+    Sends a conversation to Ollama's chat endpoint.
+    The messages array includes a system prompt, chat history, and the new user message.
+    """
     messages = [
         {
             "role": "system",
-            "content": SYSTEM_PROMPT   # use from prompts.py
+            "content": SYSTEM_PROMPT
         }
     ]
 
+    # Add the conversation history (already in OpenAI format)
     messages.extend(chat_history)
 
+    # Add the new user message
     messages.append({
         "role": "user",
-        "content": prompt
+        "content": user_prompt
     })
 
     payload = {
         "model": "mistral:7b-instruct-v0.2-q2_K",
         "messages": messages,
-        "stream": False
+        "stream": False,
+        "options": {
+            "max_tokens": 60,      # keep answers short
+            "temperature": 0.3      # more deterministic
+        }
     }
 
-    response = requests.post(OLLAMA_URL, json=payload)
-
     try:
+        response = requests.post(OLLAMA_URL, json=payload)
+        response.raise_for_status()
         data = response.json()
 
         if "message" in data:
-            reply = data["message"]["content"]
+            reply = data["message"]["content"].strip()
         elif "error" in data:
-            return f"AI Error: {data['error']}"
+            reply = f"AI Error: {data['error']}"
         else:
-            return "Unexpected AI response format."
+            reply = "Unexpected AI response format."
 
     except Exception as e:
         print("OLLAMA ERROR:", e)
-        return "AI response failed."
+        reply = "AI response failed."
 
-    # Save conversation memory
-    chat_history.append({"role": "user", "content": prompt})
+    # Update chat history with the new exchange
+    chat_history.append({"role": "user", "content": user_prompt})
     chat_history.append({"role": "assistant", "content": reply})
 
     return reply

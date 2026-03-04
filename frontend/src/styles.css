@@ -248,3 +248,14 @@ body {
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.6; }
   40% { transform: scale(1); opacity: 1; }
 }
+
+.msg.system {
+  background-color: #f8f8f8;
+  color: #666;
+  font-style: italic;
+  border-left: 4px solid #ff9800;
+  text-align: center;
+  margin: 10px auto;
+  max-width: 90%;
+  font-size: 0.9rem;
+}

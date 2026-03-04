@@ -18,6 +18,10 @@ function App() {
   const [openChat, setOpenChat] = useState(false);
   const [messages, setMessages] = useState([
     {
+      type: "system",
+      text: "⚠️ This is for informational purposes only. Always consult a doctor for medical advice.",
+    },
+    {
       type: "bot",
       text: "Hello 👋 I can explain your report results. What would you like to know?",
     },
