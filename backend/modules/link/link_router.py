@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends
-from modules.link.service import (
+from modules.link.link_service import (
     hash_patient_id,
     generate_signed_link,
     validate_token

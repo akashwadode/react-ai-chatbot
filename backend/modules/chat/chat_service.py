@@ -1,6 +1,6 @@
 from core.database import get_connection
 from modules.ai.llm import generate_response
-from modules.report.service import load_patient_context
+from modules.report.report_service import load_patient_context
 from modules.ai.prompts import build_user_prompt
 from shared.cache import (
     load_parameters_once,

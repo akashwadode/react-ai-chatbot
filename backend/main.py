@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from modules.report.router import router as summary_router
-from modules.chat.router import router as chat_router
-from modules.link.router import router as link_router
+from modules.report.report_router import router as summary_router
+from modules.chat.chat_router import router as chat_router
+from modules.link.link_router import router as link_router
 from core.database import get_connection
 
 

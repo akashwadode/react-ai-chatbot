@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from modules.link.router import validate_signed_request
-from modules.chat.service import handle_chat
+from modules.link.link_router import validate_signed_request
+from modules.chat.chat_service import handle_chat
 
 router = APIRouter()
 
