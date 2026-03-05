@@ -161,7 +161,7 @@ def handle_chat(pid_hash: str, question_raw: str):
 
         chat_memory = get_memory(patient_id)
 
-        # ---------------- PARAMETER MATCH ----------------
+               # ---------------- PARAMETER MATCH ----------------
         parameters = load_parameters_once()
         matched_param = next((p for p in parameters if p in question), None)
 
@@ -169,11 +169,12 @@ def handle_chat(pid_hash: str, question_raw: str):
         if matched_param:
             # Define keyword sets
             meaning_keywords = ["explain", "define", "meaning", "tell me about"]
+            interpretation_keywords = ["normal", "abnormal", "high", "low"]   # <-- new
             ambiguous_phrases = ["what is"]
 
-            # Check for strong meaning indicators
-            if any(kw in question for kw in meaning_keywords):
-                # Definitely an explanatory question → send to LLM
+            # Check for strong meaning or interpretation indicators
+            if any(kw in question for kw in meaning_keywords + interpretation_keywords):
+                # Explanatory question → send to LLM
                 pass  # fall through to general question handling
 
             # Check ambiguous phrases like "what is"
@@ -198,7 +199,7 @@ def handle_chat(pid_hash: str, question_raw: str):
                     pass  # fall through to LLM
 
             else:
-                # No meaning keywords → assume value request
+                # No special keywords → assume value request
                 value = context["params"].get(matched_param)
                 if value is not None:
                     return {
@@ -212,7 +213,6 @@ def handle_chat(pid_hash: str, question_raw: str):
                         "buttons": build_dynamic_buttons("general"),
                         "intent": "general",
                     }
-
         # ---------------- GENERAL QUESTION ----------------
         # (No parameter matched, or matched but identified as explanatory)
         final_prompt = build_user_prompt(question_raw, context['text'])
@@ -224,7 +224,7 @@ def handle_chat(pid_hash: str, question_raw: str):
             "intent": "general",
         }
 
-    except Exception as e:
+    except Exception as e: 
         print("ERROR:", e)
         return {
             "answer": "Something went wrong while processing your request.",
