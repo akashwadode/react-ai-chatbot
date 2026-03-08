@@ -7,26 +7,21 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=".env")
 
-# Load from environment (use the same secret for both generation and validation)
-SECRET = os.getenv("SIGNED_URL_SECRET")      # e.g., "mysectretkey"
-BASE_URL = os.getenv("BASE_URL")              # e.g., "https://yourdomain.com"
+SECRET = os.getenv("SIGNED_URL_SECRET")
+BASE_URL = os.getenv("BASE_URL")
 
 if not SECRET or not BASE_URL:
     raise ValueError("SIGNED_URL_SECRET and BASE_URL must be set in .env")
 
 
-def hash_patient_id(pid: int) -> str:
+def hash_patient_id(patient_id: str) -> str:
     """
-    Returns the SHA‑256 hash of the patient ID as a hex string.
-    This hash is used as the 'pid' parameter in the signed URL.
+    Returns the SHA‑256 hash of the patient ID (as a string) in hex format.
     """
-    return hashlib.sha256(str(pid).encode()).hexdigest()
+    return hashlib.sha256(patient_id.encode()).hexdigest()
 
 
 def sign_payload(payload: str) -> str:
-    """
-    Creates an HMAC‑SHA256 signature for the given payload using the secret.
-    """
     return hmac.new(
         SECRET.encode(),
         payload.encode(),
@@ -34,17 +29,12 @@ def sign_payload(payload: str) -> str:
     ).hexdigest()
 
 
-def generate_signed_link(pid_hash: str, rid: int, expiry_minutes: int = 10) -> str:
+def generate_signed_link(pid_hash: str, rid: str, expiry_minutes: int = 10) -> str:
     """
-    Generates a signed URL for accessing a report.
-
-    Args:
-        pid_hash: The hashed patient ID (output of hash_patient_id).
-        rid: Report ID.
-        expiry_minutes: Link validity duration in minutes (default 10).
-
-    Returns:
-        Full signed URL string.
+    Generates a signed URL for a report.
+    - pid_hash: hashed patient ID (output of hash_patient_id)
+    - rid: report ID (as string)
+    - expiry_minutes: validity in minutes
     """
     exp = int(time.time() * 1000) + (expiry_minutes * 60 * 1000)   # milliseconds
     payload = f"{pid_hash}|{rid}|{exp}"
@@ -60,21 +50,15 @@ def generate_signed_link(pid_hash: str, rid: int, expiry_minutes: int = 10) -> s
 
 
 def validate_token(pid: str, rid: str, exp: str, sig: str) -> dict:
-    """
-    Validates the signature and expiry of a request.
-    Raises HTTPException if invalid – intended for use in FastAPI dependency.
-    """
     from fastapi import HTTPException
-
     if not pid or not rid or not exp or not sig:
         raise HTTPException(status_code=401, detail="Missing access token")
 
-    # Check expiry (exp is in milliseconds)
     if int(exp) < time.time() * 1000:
         raise HTTPException(status_code=401, detail="Link expired")
 
-    expected_sig = sign_payload(f"{pid}|{rid}|{exp}")
-    if expected_sig != sig:
+    expected = sign_payload(f"{pid}|{rid}|{exp}")
+    if expected != sig:
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     return {"pid": pid, "rid": rid}
