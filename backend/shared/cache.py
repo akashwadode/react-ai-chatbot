@@ -22,14 +22,8 @@ from core.database import get_connection
 
 _PARAMETERS_CACHE = []
 
-
 def load_parameters_once():
-    """
-    Loads all test parameter names from DB only once.
-    Used for detecting lab parameter keywords in chat.
-    """
     global _PARAMETERS_CACHE
-
     if _PARAMETERS_CACHE:
         return _PARAMETERS_CACHE
 
@@ -37,8 +31,8 @@ def load_parameters_once():
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT LOWER(ParameterName)
-        FROM TestParameter
+        SELECT LOWER(test_parameter_name)
+        FROM dev.test_parameter_details
     """)
 
     rows = cursor.fetchall()
@@ -48,8 +42,8 @@ def load_parameters_once():
     conn.close()
 
     print("✅ PARAMETERS LOADED INTO CACHE")
-
     return _PARAMETERS_CACHE
+
 
 
 # -------------------------------

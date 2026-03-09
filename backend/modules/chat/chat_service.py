@@ -68,13 +68,13 @@ def handle_chat(pid_hash: str, question_raw: str):
     GREETING_WORDS = ["hi", "hello", "hey"]
 
     PREDEFINED_QUERIES = {
-        "what is my name": "Name",
-        "my name": "Name",
-        "who am i": "Name",
-        "what is my age": "Age",
-        "my age": "Age",
-        "what is my gender": "Gender",
-        "my gender": "Gender",
+        "what is my name": "name",
+        "my name": "name",
+        "who am i": "name",
+        "what is my age": "age",
+        "my age": "age",
+        "what is my gender": "gender",
+        "my gender": "gender",
     }
 
     try:
@@ -84,9 +84,9 @@ def handle_chat(pid_hash: str, question_raw: str):
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT Name
-                FROM Patient
-                WHERE encode(digest(PatientID::text, 'sha256'), 'hex') = %s
+                SELECT name
+                FROM dev.patients_details
+                WHERE encode(digest(patient_id::text, 'sha256'), 'hex') = %s
                 """,
                 (pid_hash,),
             )
@@ -113,8 +113,8 @@ def handle_chat(pid_hash: str, question_raw: str):
                 cursor.execute(
                     f"""
                     SELECT {column}
-                    FROM Patient
-                    WHERE encode(digest(PatientID::text, 'sha256'), 'hex') = %s
+                    FROM dev.patients_details
+                    WHERE encode(digest(patient_id::text, 'sha256'), 'hex') = %s
                     """,
                     (pid_hash,),
                 )
@@ -133,9 +133,9 @@ def handle_chat(pid_hash: str, question_raw: str):
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT PatientID
-            FROM Patient
-            WHERE encode(digest(PatientID::text, 'sha256'), 'hex') = %s
+            SELECT patient_id
+            FROM dev.patients_details
+            WHERE encode(digest(patient_id::text, 'sha256'), 'hex') = %s
             """,
             (pid_hash,),
         )

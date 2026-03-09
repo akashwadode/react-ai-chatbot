@@ -3,19 +3,12 @@ from modules.report.report_repository import (
     get_patient_tests
 )
 
-
 def build_summary(pid_hash: str):
-
     patient = get_patient_by_hash(pid_hash)
-
     if not patient:
         return {"error": "Patient not found"}
-
     patient_id, name, age, gender = patient
-
-    # (You can later improve abnormal logic here)
     status = "Ready"
-
     return {
         "patientName": name,
         "age": age,
@@ -25,15 +18,10 @@ def build_summary(pid_hash: str):
         "status": status,
     }
 
-
-def load_patient_context(patient_id: int):
-
+def load_patient_context(patient_id: str):   # changed from int to str
     tests = get_patient_tests(patient_id)
-
     report_summary = ""
-
     for param, value in tests:
         if value:
             report_summary += f"{param}: {value}\n"
-
     return report_summary

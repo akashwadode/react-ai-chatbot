@@ -1,9 +1,10 @@
 from core.database import get_connection
 
+
 def fetch_pending_notification():
     """
     Returns one pending notification (status=0) with patient details,
-    ordered by oldest first. Returns None if none pending.
+    report details, and lab name. Ordered by oldest first.
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -14,10 +15,12 @@ def fetch_pending_notification():
             p.phone_number AS patient_whatsapp,
             p.name AS patient_name,
             p.patient_id,
-            r.lab_id
+            r.lab_id,
+            l.lab_name
         FROM dev.patient_notification_details n
         JOIN dev.reports_upload_details r ON n.report_id = r.report_id
         JOIN dev.patients_details p ON r.patient_id = p.patient_id
+        JOIN dev.labs_details l ON r.lab_id = l.lab_id
         WHERE n.notification_status_id = 0
         ORDER BY n.processed_at NULLS FIRST, n.retry_count ASC
         LIMIT 1
@@ -33,9 +36,11 @@ def fetch_pending_notification():
             "patient_whatsapp": row[2],
             "patient_name": row[3],
             "patient_id": row[4],
-            "lab_id": row[5]
+            "lab_id": row[5],
+            "lab_name": row[6]
         }
     return None
+
 
 def increment_retry_or_fail(notification_id: str):
     """
@@ -87,3 +92,43 @@ def update_notification_status(notification_id: str, status_id: int, retry_count
     conn.commit()
     cursor.close()
     conn.close()
+    
+def fetch_all_pending_notifications():
+    """
+    Returns a list of all pending notifications (status=0) with patient details,
+    report details, and lab name. Ordered by oldest first.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    query = """
+        SELECT
+            n.notification_id,
+            n.report_id,
+            p.phone_number AS patient_whatsapp,
+            p.name AS patient_name,
+            p.patient_id,
+            r.lab_id,
+            l.lab_name
+        FROM dev.patient_notification_details n
+        JOIN dev.reports_upload_details r ON n.report_id = r.report_id
+        JOIN dev.patients_details p ON r.patient_id = p.patient_id
+        JOIN dev.labs_details l ON r.lab_id = l.lab_id
+        WHERE n.notification_status_id = 0
+        ORDER BY n.processed_at NULLS FIRST, n.retry_count ASC
+    """
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    notifications = []
+    for row in rows:
+        notifications.append({
+            "notification_id": row[0],
+            "report_id": row[1],
+            "patient_whatsapp": row[2],
+            "patient_name": row[3],
+            "patient_id": row[4],
+            "lab_id": row[5],
+            "lab_name": row[6]
+        })
+    return notifications

@@ -51,7 +51,7 @@ def test_patient():
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM Patient LIMIT 1;")
+    cursor.execute("SELECT * FROM dev.patients_details LIMIT 1;")
     data = cursor.fetchone()
 
     cursor.close()
