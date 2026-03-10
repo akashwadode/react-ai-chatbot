@@ -60,40 +60,7 @@ async def process_pending_notification():
         update_notification_status(notification_id, status_id=1, retry_count=0)
         return {"message": "Notification sent", "response": result}
 
-# for one notification at a time 
-# @router.post("/process-pending-new")
-# async def process_pending_notification_new():
-#     """
-#     Process one pending notification using the new template 'report_ready_notification_2'.
-#     Requires lab_name from database.
-#     """
-#     pending = fetch_pending_notification()
-#     if not pending:
-#         return {"message": "No pending notifications"}
-
-#     notification_id = pending["notification_id"]
-#     patient_whatsapp = pending["patient_whatsapp"]
-#     patient_name = pending["patient_name"]
-#     lab_name = pending["lab_name"]
-#     report_id = pending["report_id"]
-#     patient_id = pending["patient_id"]
-
-#     if not patient_whatsapp:
-#         update_notification_status(notification_id, status_id=2, retry_count=1)
-#         raise HTTPException(status_code=400, detail="Patient has no phone number")
-
-#     pid_hash = hash_patient_id(str(patient_id))
-#     signed_url = generate_signed_link(pid_hash, rid=str(report_id), expiry_minutes=1440)
-
-#     result = send_whatsapp_new_template(patient_whatsapp, patient_name, lab_name, signed_url)
-
-#     if "error" in result:
-#         increment_retry_or_fail(notification_id)
-#         raise HTTPException(status_code=500, detail=result["error"])
-#     else:
-#         update_notification_status(notification_id, status_id=1, retry_count=0)
-#         return {"message": "Notification sent (new template)", "response": result}
-    
+# New endpoint to process ALL pending notifications using the new template
 @router.post("/process-pending-new")
 async def process_pending_notification_new():
     """
