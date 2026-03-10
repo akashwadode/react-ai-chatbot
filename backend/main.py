@@ -25,39 +25,6 @@ app.include_router(chat_router)
 app.include_router(link_router)
 app.include_router(whatsapp_router)
 
-@app.get("/test")
-def test():
-    return {"msg": "Backend Working"}
-
-
-@app.get("/test-db")
-def test_db():
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1;")
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-
-        return {"status": "DB Connected", "result": result}
-
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@app.get("/test-patient")
-def test_patient():
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM dev.patients_details LIMIT 1;")
-    data = cursor.fetchone()
-
-    cursor.close()
-    conn.close()
-
-    return {"patient": str(data)}
 
 
 @app.on_event("startup")
